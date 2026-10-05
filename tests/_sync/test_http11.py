@@ -1,3 +1,5 @@
+import typing
+
 import pytest
 
 import httpcore
@@ -378,3 +380,29 @@ def test_http11_header_sub_100kb():
         response = conn.request("GET", "https://example.com/")
         assert response.status == 200
         assert response.content == b""
+
+
+
+def test_http11_has_expired_reads_expire_at_once():
+    """
+    Another thread can reset `_expire_at` to None, by starting a request on the
+    connection, while `has_expired()` runs, so it must read it only once.
+    """
+
+    class Connection(httpcore.HTTP11Connection):
+        reads = 0
+
+        @property
+        def _expire_at(self) -> typing.Optional[float]:
+            # A deadline in the past, then None: the other thread's reset.
+            self.reads += 1
+            return 0.0 if self.reads == 1 else None
+
+        @_expire_at.setter
+        def _expire_at(self, value: typing.Optional[float]) -> None:
+            pass
+
+    origin = httpcore.Origin(b"https", b"example.com", 443)
+    stream = httpcore.MockStream([])
+    with Connection(origin=origin, stream=stream, keepalive_expiry=5.0) as conn:
+        assert conn.has_expired()
