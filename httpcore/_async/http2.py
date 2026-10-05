@@ -521,7 +521,8 @@ class AsyncHTTP2Connection(AsyncConnectionInterface):
 
     def has_expired(self) -> bool:
         now = time.monotonic()
-        return self._expire_at is not None and now > self._expire_at
+        expire_at = self._expire_at
+        return expire_at is not None and now > expire_at
 
     def is_idle(self) -> bool:
         return self._state == HTTPConnectionState.IDLE
